@@ -1,22 +1,4 @@
-/*
-Encrypts or decrypts text from the command line.
-
-The encrypted string has two components, separetated by a pipe.
-Both components are base64-encoded.
-
-EXAMPLE ENCRYPTING
-
-	> stringcrypto.exe  -e -p="123" "Möhren zu essen ist gesund."
-
-	> D5k3Qw8R2R3GDnHITuy1SK4dZ1PTLmV/TZy5G5rKGsE=|V26jhnN1xZ2Wpde9SFNRmA==
-
-EXAMPLE DECRYPTING
-
-	> stringcrypto.exe  -d -p="123" "D5k3Qw8R2R3GDnHITuy1SK4dZ1PTLmV/TZy5G5rKGsE=|V26jhnN1xZ2Wpde9SFNRmA=="
-
-	> Möhren zu essen ist gesund.
-*/
-package stringcrypto
+package main
 
 import (
 	"bytes"
@@ -51,10 +33,22 @@ func Decrypt(ciphertext string, password string) (string, error) {
 	if len(cipher_iv) != 2 {
 		return "", fmt.Errorf("error: the given encrypted string must have two base64-encoded components separetated by a pipe: BASE64|BASE64")
 	}
-	cipher_bytes, _ := base64.StdEncoding.DecodeString(cipher_iv[0])
-	iv, _ := base64.StdEncoding.DecodeString(cipher_iv[1])
-	key, _ := pbkdf2.Key(sha256.New, password, make([]byte, 0), NUMITERATIONS, KEYSIZE)
-	block, _ := aes.NewCipher(key)
+	cipher_bytes, err := base64.StdEncoding.DecodeString(cipher_iv[0])
+	if err != nil {
+		return "", fmt.Errorf("error base64-decoding the first component of the encrypted string; %v", err)
+	}
+	iv, err := base64.StdEncoding.DecodeString(cipher_iv[1])
+	if err != nil {
+		return "", fmt.Errorf("error base64-decoding the second component of the encrypted string; %v", err)
+	}
+	key, err := pbkdf2.Key(sha256.New, password, make([]byte, 0), NUMITERATIONS, KEYSIZE)
+	if err != nil {
+		return "", fmt.Errorf("error making key from password; %v", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("error creating AES; %v", err)
+	}
 	mode := cipher.NewCBCDecrypter(block, iv)
 	plain_bytes := make([]byte, len(cipher_bytes))
 	mode.CryptBlocks(plain_bytes, cipher_bytes)
@@ -62,14 +56,20 @@ func Decrypt(ciphertext string, password string) (string, error) {
 	return string(plain_bytes[:]), nil
 }
 
-func Encrypt(plaintext string, password string) string {
-	key, _ := pbkdf2.Key(sha256.New, password, make([]byte, 0), NUMITERATIONS, KEYSIZE)
+func Encrypt(plaintext string, password string) (string, error) {
+	key, err := pbkdf2.Key(sha256.New, password, make([]byte, 0), NUMITERATIONS, KEYSIZE)
+	if err != nil {
+		return "", fmt.Errorf("error making key from password; %v", err)
+	}
 	bIV := make([]byte, BLOCKSIZE)
 	rand.Read(bIV)
-	block, _ := aes.NewCipher(key)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("error creating AES; %v", err)
+	}
 	mode := cipher.NewCBCEncrypter(block, bIV)
 	padded := PKCS7Padding([]byte(plaintext), BLOCKSIZE)
 	ciphertext := make([]byte, len(padded))
 	mode.CryptBlocks(ciphertext, padded)
-	return base64.StdEncoding.EncodeToString(ciphertext) + "|" + base64.StdEncoding.EncodeToString(bIV)
+	return base64.StdEncoding.EncodeToString(ciphertext) + "|" + base64.StdEncoding.EncodeToString(bIV), nil
 }
