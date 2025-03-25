@@ -1,5 +1,5 @@
 /*
-Encrypts or decrypts text from the command line.
+Encrypts or decrypts text from the `stdin`.
 
 The encrypted string has two components, separetated by a pipe.
 Both components are base64-encoded.
@@ -47,12 +47,12 @@ func main() {
 	if flag.NArg() == 1 {
 		payload = flag.Arg(0)
 	} else {
-		stdin_bytes, err := io.ReadAll(os.Stdin)
+		stdinBytes, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprint(os.Stderr, err)
 			os.Exit(3)
 		}
-		payload = string(stdin_bytes)
+		payload = string(stdinBytes)
 	}
 
 	if *flagEncrypt {
